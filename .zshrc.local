@@ -1,0 +1,168 @@
+################################################################################
+#      _________  _   _ ____   ____ 
+#     |__  / ___|| | | |  _ \ / ___|
+#       / /\___ \| |_| | |_) | |    
+#      / /_ ___) |  _  |  _ <| |___ 
+#     /____|____/|_| |_|_| \_\\____|
+#                              
+#
+################################################################################
+
+## Startup ##
+# If not running interactively, do not do anything
+[[ $- != *"i"* ]] && return
+
+# Load TMUX at BOOT
+#export LD_LIBRARY_PATH=$HOME/local/lib
+if [ ! -e $HOME/.NO_TMUX ]; then
+    if [ -e /usr/bin/tmux ]; then
+    #    [[ -z "$TMUX" ]] && TERM=xterm-256color $HOME/bin/tmux
+        [[ -z "$TMUX" ]] && exec /usr/bin/tmux -2 new -A -s 0
+    elif which tmux > /dev/null 2>&1; then
+        [[ -z "$TMUX" ]] && exec tmux -2 new -A -s 0
+    fi
+fi
+
+export LESSOPEN="|$HOME/.lessfilter %s"
+
+function cd_list() {
+    emulate -L zsh
+    /usr/local/bin/colorls --gs
+}
+
+if echo $chpwd_functions | grep -vq "cd_list" ; then
+	chpwd_functions=(${chpwd_functions[@]} "cd_list")
+fi
+
+#I call it canvas_hl, but it's really just outputting a self-contained HTML page that has the passed source code file syntax highlighted
+#use wl-copy if on Linux
+#use pb-copy on mac
+canvas_hl() {pygmentize-3.10 -f html -O "wrapcode=true,noclasses=true,nobackground=true" $1 | wl-copy}
+
+## Options ##
+setopt emacs
+# add `|' to output redirections in the history
+setopt histallowclobber
+# alert me if something failed
+setopt printexitvalue
+
+
+# case-insensitive and partial-word then substring
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z} m:[-._]=[-._] r:|[-./_]=** r:|=*' '+l:|=*'
+
+## Check network settings ##
+ ping -c 1 1.1.1.1 > /dev/null 2>&1
+ connected=$?
+ if [ $connected -eq 0 ]
+ then
+     export EXT=$(dig @resolver1.opendns.com -t A -4 myip.opendns.com +short)
+     export HIP=`dig +short $REMOTE_HOST`
+ else
+     echo "Network Unreachable"
+     export EXT=0
+     export HIP=1
+ fi
+
+source $HOME/antigen.zsh
+#autoload -U colors && colors
+#setopt promptsubst
+antigen init $HOME/.antigenrc
+
+## Host Specific ##
+
+## Add bins to PATH ##
+# Add ~/bin to path
+
+if [ -d $HOME/clones/diff-so-fancy ]
+then
+    export PATH=$PATH:$HOME/clones/diff-so-fancy
+    diff () {/usr/bin/diff -u $1 $2 | diff-so-fancy}
+fi
+
+if [ -d $HOME/bin ]
+then
+    export PATH=$PATH:$HOME/bin 
+fi
+
+if [ -d /usr/local/share/dotnet ]
+then
+    export PATH=$PATH:/usr/local/share/dotnet/
+fi
+
+if [ -d /opt/idapro-7.5 ]
+then
+    export PATH=$PATH:/opt/idapro-7.5
+fi
+
+if [ -d $HOME/.local/bin ]
+then
+    export PATH=$PATH:$HOME/.local/bin
+fi
+
+export GEM_HOME=/disk/scratch/$(whoami)
+
+if [ -d /disk/scratch/$(whoami)/bin ]
+then
+    export PATH=$PATH:/disk/scratch/$(whoami)/bin
+fi
+
+if [ -d $HOME/.cargo/bin ]
+then
+    export PATH=$PATH:$HOME/.cargo/bin
+fi
+
+
+# Autojumps
+#if [ -e /usr/share/autojump/autojump.sh ]; then
+#    source /usr/share/autojump/autojump.sh
+#fi
+# Connect to the correct DBUS
+if [ -e "$HOME/bin/discover_session_bus_address.sh" ]; then
+    source $HOME/bin/discover_session_bus_address.sh
+fi
+
+# Set dir-colors if present
+#if [ -e /home/$USER/.dir_colors ]; then
+#    eval `dircolors /home/$USER/.dir_colors`
+#fi
+
+## Exports ##
+
+source $(dirname $(gem which colorls))/tab_complete.sh
+
+## Finish Setup ##
+source $HOME/.aliases
+source $HOME/.functions
+
+## Welcome Message ##
+welcome_message
+
+#PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/home/dmcgrath/pybombs/bladeRF/lib/pkgconfig
+
+fpath=(~/.zsh.d/ $fpath)
+
+enable-fzf-tab
+zstyle ':fzf-tab:complete:*:*' fzf-preview 'less ${(Q)realpath}'
+
+# disable sort when completing `git checkout`
+zstyle ':completion:*:git-checkout:*' sort false
+# set descriptions format to enable group support
+zstyle ':completion:*:descriptions' format '[%d]'
+# set list-colors to enable filename colorizing
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+# disable sort when completing options of any command
+zstyle ':completion:complete:*:options' sort false
+
+zstyle ':fzf-tab:*' fzf-command ftb-tmux-popup
+
+#zstyle ':fzf-tab:*' fzf-preview 'less --color=always --style=header,grid --line-range :300 $realpath' # remember to use single quote here!!!
+
+# give a preview of commandline arguments when completing `kill`
+zstyle ':completion:*:*:*:*:processes' command "ps -u $USER -o pid,user,comm -w -w"
+zstyle ':fzf-tab:complete:(kill|ps):argument-rest' fzf-preview \
+  '[[ $group == "[process ID]" ]] && ps --pid=$word -o cmd --no-headers -w -w'
+zstyle ':fzf-tab:complete:(kill|ps):argument-rest' fzf-flags --preview-window=down:3:wrap
+
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh

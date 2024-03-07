@@ -1,0 +1,4 @@
+alias code="code-insiders"
+alias ls="colorls --gs"
+alias gdb="gdb -q"
+alias man="batman"

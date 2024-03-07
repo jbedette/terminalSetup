@@ -1,0 +1,119 @@
+#!/bin/zsh
+
+# Simple calculator
+function calc() {
+	local result=""
+	result="$(printf "scale=10;%s\\n" "$*" | bc --mathlib | tr -d '\\\n')"
+	#						└─ default (when `--mathlib` is used) is 20
+
+	if [[ "$result" == *.* ]]; then
+		# improve the output for decimal numbers
+		# add "0" for cases like ".5"
+		# add "0" for cases like "-.5"
+		# remove trailing zeros
+		printf "%s" "$result" |
+			sed -e 's/^\./0./'  \
+			-e 's/^-\./-0./' \
+			-e 's/0*$//;s/\.$//'
+	else
+		printf "%s" "$result"
+	fi
+	printf "\\n"
+}
+
+if [ -e $HOME/command_notes.md ]; then
+    function mycomm() {
+        if [ $# -eq 0 ]; then
+           cat ~/command_notes.md
+       else
+           for com in $@; do
+               cat ~/command_notes.md | grep -B 1 $com
+           done
+       fi
+    }
+fi
+
+function welcome_message() {
+    #------------------------------------------
+    #------WELCOME MESSAGE---------------------
+    # customize this first message with a message of your choice.
+    # this will display the username, date, time, a calendar, the amount of users, and the up time.
+    clear
+    # Gotta love ASCII art with figlet
+    if which figlet > /dev/null 2>&1; then
+		figlet -w 150 -f banner "Welcome, $NICKNAME" | cowsay -n
+    fi
+    echo -e ""
+    echo -ne "Today is "; date
+    echo -e ""
+    if [ -e $HOME/weather.py ]; then
+        if [ -e $HOME/.intro_cache ];then
+            if test `find "$HOME/.intro_cache" -mmin +15` 2>&1 > /dev/null
+            then
+                #echo "new"
+                if [ $connected -eq 0 ]  # Not connected to the internet
+                then
+                    $HOME/weather.py | tee $HOME/.intro_cache
+                fi
+            else
+                #echo "old"
+                cat $HOME/.intro_cache
+            fi
+        else
+            $HOME/weather.py | tee $HOME/.intro_cache
+        fi
+    else
+        echo -e "";  cal | grep --color -EC6 "\b$(date +%e | sed "s/ //g")" ;
+    fi
+    echo ""
+    if [ -e $HOME/.speed_cache ];then
+        if test `find "$HOME/.speed_cache" -mmin +720` 2>&1 > /dev/null
+        then
+            #echo "new"
+	    echo "Checking bandwidth"
+            curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --secure --simple | tee $HOME/.speed_cache
+        else
+            #echo "old"
+	    echo "Cached speed test"
+            cat $HOME/.speed_cache
+        fi
+    else
+	echo "Checking bandwidth"
+        curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 - --secure --simple | tee $HOME/.speed_cache
+    fi
+    #echo "Covid statistics in the US"
+    #curl -s -L https://covid19-cli.wareneutron.com/quiet/US | head -n -3
+    #echo ""
+    echo -ne "Up time:";uptime | awk /'up/'
+    #echo "Last Login: $(lastlog -u dmcgrath | tail -n 1)"
+    #echo "";
+    echo "You are on $HOST"
+    if [ -e $HOME/bin/sysintro.sh ]; then
+        $HOME/bin/sysintro.sh
+    fi
+
+    
+}
+
+function zshpush () {
+    ssh $REMOTE_USER@$REMOTE_HOST "cp -vu ~/.zshrc ~/.zshrc.old; cp -vu ~/.aliases ~/.aliases.old"
+    rsync -avP ~/.zshrc $REMOTE_USER@$REMOTE_HOST:~/
+    rsync -avP ~/.aliases $REMOTE_USER@$REMOTE_HOST:~/
+    rsync -avuP ~/plugins $REMOTE_USER@$REMOTE_HOST:~/
+    return 0
+}
+
+function zshpull () {
+    cp -u ~/.zshrc ~/.zshrc.old; cp -u ~/.aliases ~/.aliases.old
+    rsync -avP $REMOTE_USER@$REMOTE_HOST:~/.zshrc ~/
+    rsync -avP $REMOTE_USER@$REMOTE_HOST:~/.aliases ~/
+    rsync -avuP $REMOTE_USER@$REMOTE_HOST:~/plugins ~/
+    source ~/.zshrc; source ~/.aliases
+    echo "--------------------------------------------------------------------------------"
+    echo "ZSHRC Changes"
+    diff $HOME/.zshrc $HOME/.zshrc.old
+    echo "--------------------------------------------------------------------------------"
+    echo "ALIAS Changes"
+    diff $HOME/.aliases $HOME/.aliases.old
+    return 0
+}
